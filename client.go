@@ -9,8 +9,8 @@ import (
 	utls "github.com/Carcraftz/utls"
 )
 
-func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bool, timeout time.Duration,
-	directDialer ...proxy.ContextDialer) (http.Client, error) {
+func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bool, skipTLSCheck bool,
+timeout time.Duration, directDialer ...proxy.ContextDialer) (http.Client, error) {
 	if len(proxyUrl) > 0 {
 		dialer, err := newConnectDialer(proxyUrl)
 		if err != nil {
@@ -28,12 +28,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bo
 		}
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, dialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, dialer),
 				Timeout:   time.Second * timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, dialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, dialer),
 			Timeout:   time.Second * timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -47,12 +47,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bo
 
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, currDialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, currDialer),
 				Timeout:   time.Second * timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, currDialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, currDialer),
 			Timeout:   time.Second * timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
