@@ -10,7 +10,7 @@ import (
 )
 
 func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bool, skipTLSCheck bool,
-timeout time.Duration, directDialer ...proxy.ContextDialer) (http.Client, error) {
+	forceHttp11 bool, timeout time.Duration, directDialer ...proxy.ContextDialer) (http.Client, error) {
 	if len(proxyUrl) > 0 {
 		dialer, err := newConnectDialer(proxyUrl)
 		if err != nil {
@@ -28,12 +28,12 @@ timeout time.Duration, directDialer ...proxy.ContextDialer) (http.Client, error)
 		}
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, skipTLSCheck, dialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, dialer),
 				Timeout:   time.Second * timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, skipTLSCheck, dialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, dialer),
 			Timeout:   time.Second * timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -47,12 +47,12 @@ timeout time.Duration, directDialer ...proxy.ContextDialer) (http.Client, error)
 
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, skipTLSCheck, currDialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, currDialer),
 				Timeout:   time.Second * timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, skipTLSCheck, currDialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, currDialer),
 			Timeout:   time.Second * timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse

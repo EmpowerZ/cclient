@@ -2,7 +2,6 @@ package cclient
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -26,7 +25,8 @@ type roundTripper struct {
 
 	cachedConnections map[string]net.Conn
 	cachedTransports  map[string]http.RoundTripper
-        skipTLSCheck	  bool
+	skipTLSCheck      bool
+	forceHttp11       bool
 
 	dialer proxy.ContextDialer
 }
@@ -85,7 +85,11 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		host = addr
 	}
 
-	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, InsecureSkipVerify: rt.skipTLSCheck}, rt.clientHelloId)
+	var nextProtos []string
+	if rt.forceHttp11 {
+		nextProtos = []string{"http/1.1"}
+	}
+	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, NextProtos: nextProtos, InsecureSkipVerify: rt.skipTLSCheck}, rt.clientHelloId)
 	if err = conn.Handshake(); err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -121,7 +125,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	return nil, errProtocolNegotiated
 }
 
-func (rt *roundTripper) dialTLSHTTP2(network, addr string, _ *tls.Config) (net.Conn, error) {
+func (rt *roundTripper) dialTLSHTTP2(network, addr string, _ *utls.Config) (net.Conn, error) {
 	return rt.dialTLS(context.Background(), network, addr)
 }
 
@@ -133,13 +137,14 @@ func (rt *roundTripper) getDialTLSAddr(req *http.Request) string {
 	return net.JoinHostPort(req.URL.Host, "443") // we can assume port is 443 at this point
 }
 
-func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck bool, dialer ...proxy.ContextDialer) http.RoundTripper {
+func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck bool, forceHttp11 bool, dialer ...proxy.ContextDialer) http.RoundTripper {
 	if len(dialer) > 0 {
 		return &roundTripper{
 			dialer: dialer[0],
 
 			clientHelloId: clientHello,
-			skipTLSCheck: skipTLSCheck,
+			skipTLSCheck:  skipTLSCheck,
+			forceHttp11:   forceHttp11,
 
 			cachedTransports:  make(map[string]http.RoundTripper),
 			cachedConnections: make(map[string]net.Conn),
@@ -149,7 +154,7 @@ func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck bool, dialer .
 			dialer: proxy.Direct,
 
 			clientHelloId: clientHello,
-			skipTLSCheck: skipTLSCheck,
+			skipTLSCheck:  skipTLSCheck,
 
 			cachedTransports:  make(map[string]http.RoundTripper),
 			cachedConnections: make(map[string]net.Conn),
