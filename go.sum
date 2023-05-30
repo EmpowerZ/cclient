@@ -4,6 +4,10 @@ github.com/Carcraftz/fhttp v0.0.0-20220112175241-f36cd20af880 h1:C/yMiGvN87b2OaT
 github.com/Carcraftz/fhttp v0.0.0-20220112175241-f36cd20af880/go.mod h1:13BabbJ/YWQFq8iGu8FVYQQbFuP9jsUyqGnDg9UuxHQ=
 github.com/Carcraftz/utls v0.0.0-20210907185630-32782f880d54 h1:V/84tXJdc3wi5/kBU4iVNCxUU+XC3+wSGKFf/tRG+k4=
 github.com/Carcraftz/utls v0.0.0-20210907185630-32782f880d54/go.mod h1:YMKKxFhs/MzFaQP80rFaWsO78e/pYjtjgrlCbu5Rpps=
+github.com/EmpowerZ/fhttp v0.0.0-20220112175241-f36cd20af880 h1:C/yMiGvN87b2OaT5YOxszDrbPPG/tHK5wuEWzBUguv4=
+github.com/EmpowerZ/fhttp v0.0.0-20220112175241-f36cd20af880/go.mod h1:13BabbJ/YWQFq8iGu8FVYQQbFuP9jsUyqGnDg9UuxHQ=
+github.com/EmpowerZ/fhttp v0.0.0-20230530095459-11840bd856b6 h1:ZsoWXkH3mUy1sCpscVLBHj1H8bJUa84gWS63+Ay3bPY=
+github.com/EmpowerZ/fhttp v0.0.0-20230530095459-11840bd856b6/go.mod h1:7TpVWtrmsd9wTY4GOREgcYtRhSgXCaUbTmF1tW7E/FI=
 github.com/andybalholm/brotli v1.0.3/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/dsnet/compress v0.0.1 h1:PlZu0n3Tuv04TzpfPbrnI0HW/YwodEXDS+oPKahKF0Q=
 github.com/dsnet/compress v0.0.1/go.mod h1:Aw8dCMJ7RioblQeTqt88akK31OvO8Dhf5JflhBbQEHo=

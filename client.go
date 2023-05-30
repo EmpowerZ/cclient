@@ -3,7 +3,7 @@ package cclient
 import (
 	"time"
 
-	http "github.com/Carcraftz/fhttp"
+	http "github.com/EmpowerZ/fhttp"
 	"golang.org/x/net/proxy"
 
 	utls "github.com/Carcraftz/utls"
@@ -61,4 +61,3 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bo
 
 	}
 }
-
