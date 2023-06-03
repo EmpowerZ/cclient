@@ -56,7 +56,7 @@ func (rt *roundTripper) getTransport(req *http.Request, addr string) error {
 	case errProtocolNegotiated:
 	case nil:
 		// Should never happen.
-		panic("dialTLS returned no error when determining cachedTransports")
+		//panic("dialTLS returned no error when determining cachedTransports")
 	default:
 		return err
 	}
