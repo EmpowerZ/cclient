@@ -65,8 +65,15 @@ func (rt *roundTripper) getTransport(req *http.Request, addr string) error {
 }
 
 func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.Conn, error) {
+	unlocked := false
+	unlockIfLocked := func() {
+		if !unlocked {
+			rt.Unlock()
+			unlocked = true
+		}
+	}
 	rt.Lock()
-	defer rt.Unlock()
+	defer unlockIfLocked()
 
 	// If we have the connection from when we determined the HTTPS
 	// cachedTransports to use, return that.
@@ -74,6 +81,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		delete(rt.cachedConnections, addr)
 		return conn, nil
 	}
+	unlockIfLocked()
 
 	rawConn, err := rt.dialer.DialContext(ctx, network, addr)
 	if err != nil {
@@ -95,6 +103,9 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		return nil, err
 	}
 
+	unlocked = false
+	rt.Lock()
+	defer unlockIfLocked()
 	if rt.cachedTransports[addr] != nil {
 		return conn, nil
 	}
