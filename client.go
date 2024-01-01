@@ -16,11 +16,11 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bo
 		if err != nil {
 			if allowRedirect {
 				return http.Client{
-					Timeout: time.Second * timeout,
+					Timeout: timeout,
 				}, err
 			}
 			return http.Client{
-				Timeout: time.Second * timeout,
+				Timeout: timeout,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
 					return http.ErrUseLastResponse
 				},
@@ -29,12 +29,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bo
 		if allowRedirect {
 			return http.Client{
 				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, dialer),
-				Timeout:   time.Second * timeout,
+				Timeout:   timeout,
 			}, nil
 		}
 		return http.Client{
 			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, dialer),
-			Timeout:   time.Second * timeout,
+			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -48,12 +48,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bo
 		if allowRedirect {
 			return http.Client{
 				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, currDialer),
-				Timeout:   time.Second * timeout,
+				Timeout:   timeout,
 			}, nil
 		}
 		return http.Client{
 			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, currDialer),
-			Timeout:   time.Second * timeout,
+			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
