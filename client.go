@@ -1,6 +1,7 @@
 package cclient
 
 import (
+	"net/url"
 	"time"
 
 	http "github.com/EmpowerZ/fhttp"
@@ -9,9 +10,9 @@ import (
 	utls "github.com/EmpowerZ/utls"
 )
 
-func NewClient(clientHello utls.ClientHelloID, proxyUrl string, allowRedirect bool, skipTLSCheck bool,
+func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect bool, skipTLSCheck bool,
 	forceHttp11 bool, timeout time.Duration, directDialer ...proxy.ContextDialer) (http.Client, error) {
-	if len(proxyUrl) > 0 {
+	if proxyUrl != nil {
 		dialer, err := newConnectDialer(proxyUrl)
 		if err != nil {
 			if allowRedirect {
