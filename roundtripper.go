@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ type roundTripper struct {
 	cachedTransports  map[string]http.RoundTripper
 	skipTLSCheck      bool
 	forceHttp11       bool
+	keyLogWriter      io.Writer
 
 	dialer proxy.ContextDialer
 }
@@ -97,7 +99,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	if rt.forceHttp11 {
 		nextProtos = []string{"http/1.1"}
 	}
-	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, NextProtos: nextProtos, InsecureSkipVerify: rt.skipTLSCheck}, rt.clientHelloId)
+	conn := utls.UClient(rawConn, &utls.Config{ServerName: host, NextProtos: nextProtos, InsecureSkipVerify: rt.skipTLSCheck, KeyLogWriter: rt.keyLogWriter}, rt.clientHelloId)
 	if err = conn.Handshake(); err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -110,6 +112,10 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		return conn, nil
 	}
 
+	var tlsConfig *utls.Config
+	if rt.keyLogWriter != nil {
+		tlsConfig = &utls.Config{KeyLogWriter: rt.keyLogWriter}
+	}
 	// No http.Transport constructed yet, create one based on the results
 	// of ALPN.
 	switch conn.ConnectionState().NegotiatedProtocol {
@@ -120,13 +126,14 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 			{ID: http2.SettingMaxFrameSize, Val: 16384},
 			{ID: http2.SettingMaxHeaderListSize, Val: 262144},
 		}
+		t2.TLSClientConfig = tlsConfig
 		t2.InitialWindowSize = 6291456
 		t2.HeaderTableSize = 65536
 		t2.PushHandler = &http2.DefaultPushHandler{}
 		rt.cachedTransports[addr] = &t2
 	default:
 		// Assume the remote peer is speaking HTTP 1.x + TLS.
-		rt.cachedTransports[addr] = &http.Transport{DialTLSContext: rt.dialTLS}
+		rt.cachedTransports[addr] = &http.Transport{DialTLSContext: rt.dialTLS, TLSClientConfig: tlsConfig}
 	}
 
 	// Stash the connection just established for use servicing the
@@ -148,27 +155,18 @@ func (rt *roundTripper) getDialTLSAddr(req *http.Request) string {
 	return net.JoinHostPort(req.URL.Host, "443") // we can assume port is 443 at this point
 }
 
-func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck bool, forceHttp11 bool, dialer ...proxy.ContextDialer) http.RoundTripper {
+func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 bool, keyLogWriter io.Writer, dialer ...proxy.ContextDialer) http.RoundTripper {
+	var d proxy.ContextDialer = proxy.Direct
 	if len(dialer) > 0 {
-		return &roundTripper{
-			dialer: dialer[0],
-
-			clientHelloId: clientHello,
-			skipTLSCheck:  skipTLSCheck,
-			forceHttp11:   forceHttp11,
-
-			cachedTransports:  make(map[string]http.RoundTripper),
-			cachedConnections: make(map[string]net.Conn),
-		}
-	} else {
-		return &roundTripper{
-			dialer: proxy.Direct,
-
-			clientHelloId: clientHello,
-			skipTLSCheck:  skipTLSCheck,
-
-			cachedTransports:  make(map[string]http.RoundTripper),
-			cachedConnections: make(map[string]net.Conn),
-		}
+		d = dialer[0]
+	}
+	return &roundTripper{
+		dialer:            d,
+		clientHelloId:     clientHello,
+		skipTLSCheck:      skipTLSCheck,
+		forceHttp11:       forceHttp11,
+		keyLogWriter:      keyLogWriter,
+		cachedTransports:  make(map[string]http.RoundTripper),
+		cachedConnections: make(map[string]net.Conn),
 	}
 }
