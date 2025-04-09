@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	tls "github.com/EmpowerZ/utls"
+	tls "github.com/refraction-networking/utls"
 )
 
 type JA3Response struct {

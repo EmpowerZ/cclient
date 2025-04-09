@@ -9,7 +9,7 @@ import (
 	http "github.com/EmpowerZ/fhttp"
 	"golang.org/x/net/proxy"
 
-	utls "github.com/EmpowerZ/utls"
+	utls "github.com/refraction-networking/utls"
 )
 
 func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect bool, skipTLSCheck bool,

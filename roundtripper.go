@@ -14,7 +14,7 @@ import (
 	"github.com/EmpowerZ/fhttp/http2"
 	"golang.org/x/net/proxy"
 
-	utls "github.com/EmpowerZ/utls"
+	utls "github.com/refraction-networking/utls"
 )
 
 var errProtocolNegotiated = errors.New("protocol negotiated")
