@@ -87,10 +87,6 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	}
 	unlockIfLocked()
 
-	type result struct {
-		conn net.Conn
-		err  error
-	}
 	// When multiple handshakes were done at the same time, in old code, before using singleflight.Group,
 	// connections created by non-first dialTLS were thrown away and transport for them was also never created.
 	// So singleflight.Group avoids creating unnecessary connections.
@@ -126,45 +122,45 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		unlocked = false
 		rt.Lock()
 		defer unlockIfLocked()
-		// Not sure if it can be non-nil, when we use tlsHandshakeGroup. But leave this check just in case.
-		// It could have been non-nil before due to race. Maybe other cases (not sure).
-		if rt.cachedTransports[addr] == nil {
-			var tlsConf *utls.Config
-			if rt.keyLogWriter != nil {
-				tlsConf = &utls.Config{KeyLogWriter: rt.keyLogWriter}
+		// I think this can happen, when connection is dropped by server and lib tries to get new connection.
+		// And this time the call comes from the library and expects a connection, not `errProtocolNegotiated`.
+		// But I am not 100% sure.
+		if rt.cachedTransports[addr] != nil {
+			return uconn, nil
+		}
+
+		var tlsConf *utls.Config
+		if rt.keyLogWriter != nil {
+			tlsConf = &utls.Config{KeyLogWriter: rt.keyLogWriter}
+		}
+		// No http.Transport constructed yet, create one based on the results
+		// of ALPN.
+		if uconn.ConnectionState().NegotiatedProtocol == http2.NextProtoTLS {
+			t2 := http2.Transport{DialTLS: rt.dialTLSHTTP2}
+			t2.Settings = []http2.Setting{
+				{ID: http2.SettingMaxConcurrentStreams, Val: 1000},
+				{ID: http2.SettingMaxFrameSize, Val: 16384},
+				{ID: http2.SettingMaxHeaderListSize, Val: 262144},
 			}
-			// No http.Transport constructed yet, create one based on the results
-			// of ALPN.
-			if uconn.ConnectionState().NegotiatedProtocol == http2.NextProtoTLS {
-				t2 := http2.Transport{DialTLS: rt.dialTLSHTTP2}
-				t2.Settings = []http2.Setting{
-					{ID: http2.SettingMaxConcurrentStreams, Val: 1000},
-					{ID: http2.SettingMaxFrameSize, Val: 16384},
-					{ID: http2.SettingMaxHeaderListSize, Val: 262144},
-				}
-				t2.TLSClientConfig = tlsConf
-				t2.InitialWindowSize = 6291456
-				t2.HeaderTableSize = 65536
-				t2.PushHandler = &http2.DefaultPushHandler{}
-				rt.cachedTransports[addr] = &t2
-			} else {
-				// Assume the remote peer is speaking HTTP 1.x + TLS.
-				rt.cachedTransports[addr] = &http.Transport{
-					DialTLSContext:  rt.dialTLS,
-					TLSClientConfig: tlsConf,
-				}
+			t2.TLSClientConfig = tlsConf
+			t2.InitialWindowSize = 6291456
+			t2.HeaderTableSize = 65536
+			t2.PushHandler = &http2.DefaultPushHandler{}
+			rt.cachedTransports[addr] = &t2
+		} else {
+			// Assume the remote peer is speaking HTTP 1.x + TLS.
+			rt.cachedTransports[addr] = &http.Transport{
+				DialTLSContext:  rt.dialTLS,
+				TLSClientConfig: tlsConf,
 			}
 		}
 		// STEP 2. Stash the connection just established for use servicing the
 		// actual request (should be near-immediate).
 		rt.cachedConnections[addr] = uconn
-		return result{conn: nil, err: errProtocolNegotiated}, nil
+		return nil, errProtocolNegotiated
 	})
-	if err != nil {
-		return nil, err
-	}
-	res := v.(result)
-	return res.conn, res.err
+	conn, _ := v.(net.Conn) // conn is nil if v==nil or not a net.Conn
+	return conn, err
 }
 
 func (rt *roundTripper) dialTLSHTTP2(network, addr string, _ *utls.Config) (net.Conn, error) {
