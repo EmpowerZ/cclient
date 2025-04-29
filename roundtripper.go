@@ -33,6 +33,7 @@ type roundTripper struct {
 
 	dialer            proxy.ContextDialer
 	tlsHandshakeGroup singleflight.Group
+	onNewConnection   func(network, address string)
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -91,6 +92,9 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 	// connections created by non-first dialTLS were thrown away and transport for them was also never created.
 	// So singleflight.Group avoids creating unnecessary connections.
 	v, err, _ := rt.tlsHandshakeGroup.Do(addr, func() (interface{}, error) {
+		if rt.onNewConnection != nil {
+			rt.onNewConnection(network, addr)
+		}
 		// original raw dial + uTLS handshake
 		rawConn, err := rt.dialer.DialContext(ctx, network, addr)
 		if err != nil {
@@ -175,7 +179,7 @@ func (rt *roundTripper) getDialTLSAddr(req *http.Request) string {
 	return net.JoinHostPort(req.URL.Host, "443") // we can assume port is 443 at this point
 }
 
-func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 bool, keyLogWriter io.Writer, dialer ...proxy.ContextDialer) http.RoundTripper {
+func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 bool, keyLogWriter io.Writer, onNewConnection func(network, address string), dialer ...proxy.ContextDialer) http.RoundTripper {
 	var d proxy.ContextDialer = proxy.Direct
 	if len(dialer) > 0 {
 		d = dialer[0]
@@ -188,5 +192,6 @@ func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 b
 		keyLogWriter:      keyLogWriter,
 		cachedTransports:  make(map[string]http.RoundTripper),
 		cachedConnections: make(map[string]net.Conn),
+		onNewConnection:   onNewConnection,
 	}
 }
