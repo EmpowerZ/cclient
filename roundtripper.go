@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/singleflight"
 	"io"
 	"net"
 	"strings"
 	"sync"
+
+	"golang.org/x/sync/singleflight"
 
 	http "github.com/EmpowerZ/fhttp"
 
@@ -30,6 +31,7 @@ type roundTripper struct {
 	skipTLSCheck      bool
 	forceHttp11       bool
 	keyLogWriter      io.Writer
+	enableHWTS        bool
 
 	dialer            proxy.ContextDialer
 	tlsHandshakeGroup singleflight.Group
@@ -49,7 +51,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 func (rt *roundTripper) getTransport(req *http.Request, addr string) error {
 	switch strings.ToLower(req.URL.Scheme) {
 	case "http":
-		rt.cachedTransports[addr] = &http.Transport{DialContext: rt.dialer.DialContext}
+		rt.cachedTransports[addr] = &http.Transport{DialContext: rt.dialer.DialContext, EnableHardwareRXTimestamping: rt.enableHWTS}
 		return nil
 	case "https":
 	default:
@@ -100,6 +102,12 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		if err != nil {
 			return nil, err
 		}
+		wrappedConn := rawConn
+		if rt.enableHWTS {
+			if wrapped, _ := http.WrapForHardwareTimestamps(rawConn, true); wrapped != nil {
+				wrappedConn = wrapped
+			}
+		}
 
 		host, _, serr := net.SplitHostPort(addr)
 		if serr != nil {
@@ -112,7 +120,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		}
 		// STEP 1. Create this connection to do handshake. Later (step 2) stash it to cachedConnections to and later return it
 		// to the library (step 3) to be used for actual requests.
-		uconn := utls.UClient(rawConn, &utls.Config{
+		uconn := utls.UClient(wrappedConn, &utls.Config{
 			ServerName:         host,
 			NextProtos:         nextProtos,
 			InsecureSkipVerify: rt.skipTLSCheck,
@@ -140,7 +148,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		// No http.Transport constructed yet, create one based on the results
 		// of ALPN.
 		if uconn.ConnectionState().NegotiatedProtocol == http2.NextProtoTLS {
-			t2 := http2.Transport{DialTLS: rt.dialTLSHTTP2}
+			t2 := http2.Transport{DialTLS: rt.dialTLSHTTP2, EnableHardwareRXTimestamping: rt.enableHWTS}
 			t2.Settings = []http2.Setting{
 				{ID: http2.SettingMaxConcurrentStreams, Val: 1000},
 				{ID: http2.SettingMaxFrameSize, Val: 16384},
@@ -154,8 +162,9 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		} else {
 			// Assume the remote peer is speaking HTTP 1.x + TLS.
 			rt.cachedTransports[addr] = &http.Transport{
-				DialTLSContext:  rt.dialTLS,
-				TLSClientConfig: tlsConf,
+				DialTLSContext:               rt.dialTLS,
+				TLSClientConfig:              tlsConf,
+				EnableHardwareRXTimestamping: rt.enableHWTS,
 			}
 		}
 		// STEP 2. Stash the connection just established for use servicing the
@@ -179,7 +188,7 @@ func (rt *roundTripper) getDialTLSAddr(req *http.Request) string {
 	return net.JoinHostPort(req.URL.Host, "443") // we can assume port is 443 at this point
 }
 
-func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 bool, keyLogWriter io.Writer, onNewConnection func(network, address string), dialer ...proxy.ContextDialer) http.RoundTripper {
+func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 bool, keyLogWriter io.Writer, enableHWTS bool, onNewConnection func(network, address string), dialer ...proxy.ContextDialer) http.RoundTripper {
 	var d proxy.ContextDialer = proxy.Direct
 	if len(dialer) > 0 {
 		d = dialer[0]
@@ -193,5 +202,6 @@ func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 b
 		cachedTransports:  make(map[string]http.RoundTripper),
 		cachedConnections: make(map[string]net.Conn),
 		onNewConnection:   onNewConnection,
+		enableHWTS:        enableHWTS,
 	}
 }

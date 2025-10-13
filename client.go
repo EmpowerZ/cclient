@@ -13,7 +13,8 @@ import (
 )
 
 func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect bool, skipTLSCheck bool,
-	forceHttp11 bool, timeout time.Duration, tlsKeyLogWriterFilepath string, onNewConnection func(network, address string), directDialer ...proxy.ContextDialer) (http.Client, error) {
+	forceHttp11 bool, timeout time.Duration, tlsKeyLogWriterFilepath string, enableTimestamps bool,
+	onNewConnection func(network, address string), directDialer ...proxy.ContextDialer) (http.Client, error) {
 	var keyLogWriter io.Writer
 	if tlsKeyLogWriterFilepath != "" {
 		var err error
@@ -40,12 +41,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect 
 		}
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, onNewConnection, dialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, dialer),
 				Timeout:   timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, onNewConnection, dialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, dialer),
 			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -59,12 +60,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect 
 
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, onNewConnection, currDialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, currDialer),
 				Timeout:   timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, onNewConnection, currDialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, currDialer),
 			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse

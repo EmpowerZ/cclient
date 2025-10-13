@@ -9,13 +9,24 @@ package main
 
 import (
     "log"
+    "time"
 
     tls "github.com/Titanium-ctrl/utls"
     "github.com/Titanium-ctrl/cclient"
 )
 
 func main() {
-    client, err := cclient.NewClient(tls.HelloChrome_Auto,"",true,6)
+    client, err := cclient.NewClient(
+        tls.HelloChrome_Auto,
+        nil,          // no proxy
+        true,         // allow redirects
+        false,        // skip TLS verification
+        false,        // force HTTP/1.1
+        6*time.Second,
+        "",          // TLS key log file
+        false,        // enable hardware RX timestamps
+        nil,          // connection callback
+    )
     if err != nil {
         log.Fatal(err)
     }
