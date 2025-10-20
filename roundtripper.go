@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/singleflight"
 
@@ -36,6 +37,7 @@ type roundTripper struct {
 	dialer            proxy.ContextDialer
 	tlsHandshakeGroup singleflight.Group
 	onNewConnection   func(network, address string)
+	defaultTimeout    time.Duration
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -72,6 +74,16 @@ func (rt *roundTripper) getTransport(req *http.Request, addr string) error {
 }
 
 func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.Conn, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var cancel context.CancelFunc
+	if _, ok := ctx.Deadline(); !ok && rt.defaultTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, rt.defaultTimeout)
+	}
+	if cancel != nil {
+		defer cancel()
+	}
 	unlocked := false
 	unlockIfLocked := func() {
 		if !unlocked {
@@ -188,7 +200,15 @@ func (rt *roundTripper) getDialTLSAddr(req *http.Request) string {
 	return net.JoinHostPort(req.URL.Host, "443") // we can assume port is 443 at this point
 }
 
-func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 bool, keyLogWriter io.Writer, enableHWTS bool, onNewConnection func(network, address string), dialer ...proxy.ContextDialer) http.RoundTripper {
+func newRoundTripper(
+	clientHello utls.ClientHelloID,
+	skipTLSCheck, forceHttp11 bool,
+	keyLogWriter io.Writer,
+	enableHWTS bool,
+	defaultTimeout time.Duration,
+	onNewConnection func(network, address string),
+	dialer ...proxy.ContextDialer,
+) http.RoundTripper {
 	var d proxy.ContextDialer = proxy.Direct
 	if len(dialer) > 0 {
 		d = dialer[0]
@@ -203,5 +223,6 @@ func newRoundTripper(clientHello utls.ClientHelloID, skipTLSCheck, forceHttp11 b
 		cachedConnections: make(map[string]net.Conn),
 		onNewConnection:   onNewConnection,
 		enableHWTS:        enableHWTS,
+		defaultTimeout:    defaultTimeout,
 	}
 }

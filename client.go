@@ -41,12 +41,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect 
 		}
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, dialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, timeout, onNewConnection, dialer),
 				Timeout:   timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, dialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, timeout, onNewConnection, dialer),
 			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -60,12 +60,12 @@ func NewClient(clientHello utls.ClientHelloID, proxyUrl *url.URL, allowRedirect 
 
 		if allowRedirect {
 			return http.Client{
-				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, currDialer),
+				Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, timeout, onNewConnection, currDialer),
 				Timeout:   timeout,
 			}, nil
 		}
 		return http.Client{
-			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, onNewConnection, currDialer),
+			Transport: newRoundTripper(clientHello, skipTLSCheck, forceHttp11, keyLogWriter, enableTimestamps, timeout, onNewConnection, currDialer),
 			Timeout:   timeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
