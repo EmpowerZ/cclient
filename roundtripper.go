@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/EmpowerZ/fhttp/httptrace"
 	"golang.org/x/sync/singleflight"
 
 	http "github.com/EmpowerZ/fhttp"
@@ -109,10 +110,22 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		if rt.onNewConnection != nil {
 			rt.onNewConnection(network, addr)
 		}
+		trace := httptrace.ContextClientTrace(ctx)
+		dialerHandlesTrace := dialerHandlesConnectTracing(rt.dialer)
+		if !dialerHandlesTrace {
+			traceConnectStart(trace, network, addr)
+		}
+
 		// original raw dial + uTLS handshake
 		rawConn, err := rt.dialer.DialContext(ctx, network, addr)
 		if err != nil {
+			if !dialerHandlesTrace {
+				traceConnectDone(trace, network, addr, err)
+			}
 			return nil, err
+		}
+		if !dialerHandlesTrace {
+			traceConnectDone(trace, network, addr, nil)
 		}
 		wrappedConn := rawConn
 		if rt.enableHWTS {
@@ -138,9 +151,18 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 			InsecureSkipVerify: rt.skipTLSCheck,
 			KeyLogWriter:       rt.keyLogWriter,
 		}, rt.clientHelloId)
+		if trace != nil && trace.TLSHandshakeStart != nil {
+			trace.TLSHandshakeStart()
+		}
 		if err = uconn.Handshake(); err != nil {
+			if trace != nil && trace.TLSHandshakeDone != nil {
+				trace.TLSHandshakeDone(utls.ConnectionState{}, err)
+			}
 			_ = uconn.Close()
 			return nil, err
+		}
+		if trace != nil && trace.TLSHandshakeDone != nil {
+			trace.TLSHandshakeDone(uconn.ConnectionState(), nil)
 		}
 
 		unlocked = false
@@ -198,6 +220,11 @@ func (rt *roundTripper) getDialTLSAddr(req *http.Request) string {
 		return net.JoinHostPort(host, port)
 	}
 	return net.JoinHostPort(req.URL.Host, "443") // we can assume port is 443 at this point
+}
+
+func dialerHandlesConnectTracing(d proxy.ContextDialer) bool {
+	_, ok := d.(*connectDialer)
+	return ok
 }
 
 func newRoundTripper(
